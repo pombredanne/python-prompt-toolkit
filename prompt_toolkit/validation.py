@@ -16,22 +16,33 @@ __all__ = (
 
 
 class ValidationError(Exception):
-    def __init__(self, index=0, message=''):
+    """
+    Error raised by :func:`.Validator.validate`.
+
+    :param cursor_position: The cursor position where the error occured.
+    :param message: Text.
+    """
+    def __init__(self, cursor_position=0, message=''):
         super(ValidationError, self).__init__(message)
-        self.index = index
+        self.cursor_position = cursor_position
         self.message = message
 
     def __repr__(self):
-        return '%s(index=%r, message=%r)' % (
-            self.__class__.__name__, self.index, self.message)
+        return '%s(cursor_position=%r, message=%r)' % (
+            self.__class__.__name__, self.cursor_position, self.message)
 
 
 class Validator(with_metaclass(ABCMeta, object)):
+    """
+    Abstract base class for an input validator.
+    """
     @abstractmethod
     def validate(self, document):
         """
         Validate the input.
-        If invalid, this should raise `self.validation_error`.
+        If invalid, this should raise a :class:`.ValidationError`.
+
+        :param document: :class:`~prompt_toolkit.document.Document` instance.
         """
         pass
 

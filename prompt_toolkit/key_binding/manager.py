@@ -16,7 +16,7 @@ from prompt_toolkit.key_binding.vi_state import ViState
 from prompt_toolkit.key_binding.bindings.basic import load_basic_bindings, load_abort_and_exit_bindings, load_basic_system_bindings, load_auto_suggestion_bindings
 from prompt_toolkit.key_binding.bindings.emacs import load_emacs_bindings, load_emacs_system_bindings, load_emacs_search_bindings, load_emacs_open_in_editor_bindings, load_extra_emacs_page_navigation_bindings
 from prompt_toolkit.key_binding.bindings.vi import load_vi_bindings, load_vi_system_bindings, load_vi_search_bindings, load_vi_open_in_editor_bindings, load_extra_vi_page_navigation_bindings
-from prompt_toolkit.filters import Never, Always, to_cli_filter
+from prompt_toolkit.filters import to_cli_filter
 
 __all__ = (
     'KeyBindingManager',
@@ -121,6 +121,21 @@ class KeyBindingManager(object):
         load_auto_suggestion_bindings(
             self.registry,
             enable_auto_suggest_bindings & enable_all)
+
+    @classmethod
+    def for_prompt(cls, **kw):
+        """
+        Create a ``KeyBindingManager`` with the defaults for an input prompt.
+        This activates incremental the bindings for abort/exit (Ctrl-C/Ctrl-D),
+        incremental search and auto suggestions.
+
+        (Not for full screen applications.)
+        """
+        kw.setdefault('enable_abort_and_exit_bindings', True)
+        kw.setdefault('enable_search', True)
+        kw.setdefault('enable_auto_suggest_bindings', True)
+
+        return cls(**kw)
 
     def reset(self):
         self.vi_state.reset()

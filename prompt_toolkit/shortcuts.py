@@ -1,12 +1,11 @@
 """
-Useful shortcuts for creating a `CommandLineInterface` and reading input from it.
------------------------------------------------------------------------- --------
+Shortcuts for retrieving input from the user.
 
 If you are using this library for retrieving some input from the user (as a
 pure Python replacement for GNU readline), probably for 90% of the use cases,
-the `get_input` function is all you need. It's the easiest shortcut which does
-a lot of the underlying work like creating a `CommandLineInterface` instance
-for you.
+the :func:`.prompt` function is all you need. It's the easiest shortcut which
+does a lot of the underlying work like creating a
+:class:`~prompt_toolkit.interface.CommandLineInterface` instance for you.
 
 When is this not sufficient:
     - When you want to have more complicated layouts (maybe with sidebars or
@@ -15,7 +14,7 @@ When is this not sufficient:
     - When you wish to have multiple input buffers. (If you would create an
       editor like a Vi clone.)
     - Something else that requires more customization than what is possible
-      with the parameters of `get_input`.
+      with the parameters of `prompt`.
 
 In that case, study the code in this file and build your own
 `CommandLineInterface` instance. It's not too complicated.
@@ -25,7 +24,7 @@ from __future__ import unicode_literals
 from .buffer import Buffer
 from .document import Document
 from .enums import DEFAULT_BUFFER, SEARCH_BUFFER
-from .filters import IsDone, HasFocus, Always, Never, RendererHeightIsKnown, to_simple_filter, to_cli_filter, Condition
+from .filters import IsDone, HasFocus, RendererHeightIsKnown, to_simple_filter, to_cli_filter, Condition
 from .history import InMemoryHistory
 from .interface import CommandLineInterface, Application, AbortAction, AcceptAction
 from .key_binding.manager import KeyBindingManager
@@ -61,13 +60,14 @@ __all__ = (
     'create_default_output',
     'create_default_layout',
     'create_default_application',
-    'get_input',
+    'prompt',
 )
 
 
 def create_eventloop(inputhook=None):
     """
-    Create and return a normal `EventLoop` instance for a
+    Create and return a normal
+    :class:`~prompt_toolkit.eventloop.base.EventLoop` instance for a
     `CommandLineInterface`.
     """
     if is_windows():
@@ -197,7 +197,7 @@ def create_default_layout(message='', lexer=None, is_password=False,
                             # there is no search: the Vi 'n' binding for instance
                             # still allows to jump to the next match in
                             # navigation mode.)
-                            HighlightSearchProcessor(preview_search=Always()),
+                            HighlightSearchProcessor(preview_search=True),
                             HasFocus(SEARCH_BUFFER)),
                         HighlightSelectionProcessor(),
                         ConditionalProcessor(AppendAutoSuggestion(), HasFocus(DEFAULT_BUFFER) & ~IsDone()),
@@ -256,7 +256,7 @@ def create_default_layout(message='', lexer=None, is_password=False,
                         wrap_lines=wrap_lines,
                         # Enable preview_search, we want to have immediate feedback
                         # in reverse-i-search mode.
-                        preview_search=Always()),
+                        preview_search=True),
                     get_height=get_height,
                 ),
                 [
@@ -272,7 +272,7 @@ def create_default_layout(message='', lexer=None, is_password=False,
                           content=MultiColumnCompletionsMenu(
                               extra_filter=HasFocus(DEFAULT_BUFFER) &
                                            display_completions_in_columns,
-                              show_meta=Always()))
+                              show_meta=True))
                 ]
             ),
         ]),
@@ -287,15 +287,15 @@ def create_default_layout(message='', lexer=None, is_password=False,
 
 def create_default_application(
         message='',
-        multiline=Never(),
+        multiline=False,
         wrap_lines=True,
         is_password=False,
-        vi_mode=Never(),
-        complete_while_typing=Always(),
-        enable_history_search=Never(),
+        vi_mode=False,
+        complete_while_typing=True,
+        enable_history_search=False,
         lexer=None,
-        enable_system_bindings=Never(),
-        enable_open_in_editor=Never(),
+        enable_system_bindings=False,
+        enable_open_in_editor=False,
         validator=None,
         completer=None,
         auto_suggest=None,
@@ -324,17 +324,20 @@ def create_default_application(
     :param wrap_lines: `bool` or `CLIFilter`. When True (the default),
         automatically wrap long lines instead of scrolling horizontally.
     :param is_password: Show asterisks instead of the actual typed characters.
-    :param vi_mode: If True, use Vi key bindings.
-    :param complete_while_typing: Enable autocompletion while typing.
-    :param enable_history_search: Enable up-arrow parting string matching.
+    :param vi_mode: `bool` or `CLIFilter`. If True, use Vi key bindings.
+    :param complete_while_typing: `bool` or `CLIFilter`. Enable autocompletion
+        while typing.
+    :param enable_history_search: `bool` or `CLIFilter`. Enable up-arrow
+        parting string matching.
     :param lexer: Lexer to be used for the syntax highlighting.
     :param validator: `Validator` instance for input validation.
     :param completer: `Completer` instance for input completion.
     :param auto_suggest: `AutoSuggest` instance for input suggestions.
     :param style: Pygments style class for the color scheme.
-    :param enable_system_bindings: Pressing Meta+'!' will show a system prompt.
-    :param enable_open_in_editor: Pressing 'v' in Vi mode or C-X C-E in emacs
-                                  mode will open an external editor.
+    :param enable_system_bindings: `bool` or `CLIFilter`. Pressing Meta+'!'
+        will show a system prompt.
+    :param enable_open_in_editor: `bool` or `CLIFilter`. Pressing 'v' in Vi
+        mode or C-X C-E in emacs mode will open an external editor.
     :param history: `History` instance. (e.g. `FileHistory`)
     :param clipboard: `Clipboard` instance. (e.g. `InMemoryClipboard`)
     :param get_bottom_toolbar_tokens: Optional callable which takes a
@@ -349,13 +352,10 @@ def create_default_application(
         be edited by the user.)
     """
     if key_bindings_registry is None:
-        key_bindings_registry = KeyBindingManager(
+        key_bindings_registry = KeyBindingManager.for_prompt(
             enable_vi_mode=vi_mode,
             enable_system_bindings=enable_system_bindings,
-            enable_open_in_editor=enable_open_in_editor,
-            enable_search=True,
-            enable_abort_and_exit_bindings=True,
-            enable_auto_suggest_bindings=True).registry
+            enable_open_in_editor=enable_open_in_editor).registry
 
     # Make sure that complete_while_typing is disabled when enable_history_search
     # is enabled. (First convert to SimpleFilter, to avoid doing bitwise operations
@@ -399,14 +399,18 @@ def create_default_application(
         on_exit=on_exit)
 
 
-def get_input(message='', **kwargs):
+def prompt(message='', **kwargs):
     """
-    Get input from the user and return it. This wrapper builds the most obvious
-    configuration of a `CommandLineInterface`. This can be a replacement for
-    `raw_input`. (or GNU readline.)
+    Get input from the user and return it.
 
-    If you want to keep your history across several ``get_input`` calls, you
-    have to create a :class:`History` instance and pass it every time.
+    This is a wrapper around a lot of ``prompt_toolkit`` functionality and can
+    be a replacement for `raw_input`. (or GNU readline.)
+
+    If you want to keep your history across several calls, create one
+    :class:`~prompt_toolkit.history.History` instance and pass it every time.
+
+    This function accepts many keyword arguments. They are a proxy to the
+    arguments of :func:`.create_default_application`.
     """
     eventloop = kwargs.pop('eventloop', None) or create_eventloop()
     patch_stdout = kwargs.pop('patch_stdout', False)
@@ -437,3 +441,7 @@ def get_input(message='', **kwargs):
     finally:
         eventloop.close()
         sys.stdout = original_stdout
+
+
+# Deprecated alias for `prompt`.
+get_input = prompt

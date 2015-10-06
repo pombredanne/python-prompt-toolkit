@@ -42,18 +42,17 @@ class CommandLineInterface(object):
 
     Typical usage::
 
-        cli = CommandLineInterface(eventloop)
-        while True:
-            result = cli.run()
-            print(result)
+        application = Application(...)
+        cli = CommandLineInterface(application, eventloop)
+        result = cli.run()
+        print(result)
 
-    :param eventloop: The `EventLoop` to be used when `run` is called.
-                      (Further, this allows callbacks to know where to find the
-                      `run_in_executor`.) It can be `None` as well, when no
-                      eventloop is used/exposed.
-    :param application: `Application` .
-    :param input: :class:`Input` class.
-    :param output: :class:`Output` instance. (Probably Vt100_Output or Win32Output.)
+    :param application: :class:`~prompt_toolkit.application.Application` instance.
+    :param eventloop: The :class:`~prompt_toolkit.eventloop.base.EventLoop` to
+                      be used when `run` is called.
+    :param input: :class:`~prompt_toolkit.input.Input` instance.
+    :param output: :class:`~prompt_toolkit.output.Output` instance. (Probably
+                   Vt100_Output or Win32Output.)
     """
     def __init__(self, application, eventloop=None, input=None, output=None):
         assert isinstance(application, Application)
@@ -160,7 +159,8 @@ class CommandLineInterface(object):
         buffer.on_text_insert += create_on_insert_handler()
 
     def start_completion(self, buffer_name=None, select_first=False,
-                         select_last=False, insert_common_part=False):
+                         select_last=False, insert_common_part=False,
+                         complete_event=None):
         """
         Start asynchronous autocompletion of this buffer.
         (This will do nothing if a previous completion was still in progress.)
@@ -171,7 +171,8 @@ class CommandLineInterface(object):
         if completer:
             completer(select_first=select_first,
                       select_last=select_last,
-                      insert_common_part=insert_common_part)
+                      insert_common_part=insert_common_part,
+                      complete_event=CompleteEvent(completion_requested=True))
 
     @property
     def current_buffer_name(self):
@@ -183,7 +184,7 @@ class CommandLineInterface(object):
     @property
     def current_buffer(self):
         """
-        The current focussed :class:`Buffer`.
+        The currently focussed :class:`~prompt_toolkit.buffer.Buffer`.
 
         (This returns a dummy `Buffer` when none of the actual buffers has the
         focus. In this case, it's really not practical to check for `None`
@@ -370,7 +371,7 @@ class CommandLineInterface(object):
 
     def run_sub_application(self, application, done_callback=None):
         """
-        Run a sub `Application`.
+        Run a sub :class:`~prompt_toolkit.application.Application`.
 
         This will suspend the main application and display the sub application
         until that one returns a value. The value is returned by calling
@@ -378,12 +379,12 @@ class CommandLineInterface(object):
 
         The sub application will share the same I/O of the main application.
         That means, it uses the same input and output channels and it shares
-        the same event loop. [1]
+        the same event loop.
 
-        [1] Technically, it gets another Eventloop instance, but that is only a
-            proxy to our main event loop. The reason is that calling 'stop'
-            --which returns the result of an application when it's done-- is
-            handled differently.
+        .. note:: Technically, it gets another Eventloop instance, but that is
+            only a proxy to our main event loop. The reason is that calling
+            'stop' --which returns the result of an application when it's
+            done-- is handled differently.
         """
         assert isinstance(application, Application)
         assert done_callback is None or callable(done_callback)
@@ -425,12 +426,11 @@ class CommandLineInterface(object):
         """
         Set exit. When Control-D has been pressed.
         """
-        self._exit_flag = True
         on_exit = self.application.on_exit
 
         if on_exit != AbortAction.IGNORE:
+            self._exit_flag = True
             self._redraw()
-            self.current_buffer.reset()
 
         if on_exit == AbortAction.RAISE_EXCEPTION:
             def eof_error():
@@ -440,6 +440,7 @@ class CommandLineInterface(object):
         elif on_exit == AbortAction.RETRY:
             self.reset()
             self.renderer.request_absolute_cursor_position()
+            self.current_buffer.reset()
 
         elif on_exit == AbortAction.RETURN_NONE:
             self.set_return_value(None)
@@ -453,7 +454,6 @@ class CommandLineInterface(object):
         if on_abort != AbortAction.IGNORE:
             self._abort_flag = True
             self._redraw()
-            self.current_buffer.reset()
 
         if on_abort == AbortAction.RAISE_EXCEPTION:
             def keyboard_interrupt():
@@ -463,6 +463,7 @@ class CommandLineInterface(object):
         elif on_abort == AbortAction.RETRY:
             self.reset()
             self.renderer.request_absolute_cursor_position()
+            self.current_buffer.reset()
 
         elif on_abort == AbortAction.RETURN_NONE:
             self.set_return_value(None)
@@ -502,6 +503,7 @@ class CommandLineInterface(object):
         if render_cli_done:
             self._return_value = True
             self._redraw()
+            self.renderer.reset()  # Make sure to disable mouse mode, etc...
         else:
             self.renderer.erase()
 
@@ -604,8 +606,9 @@ class CommandLineInterface(object):
         complete_thread_running = [False]  # By ref.
 
         def async_completer(select_first=False, select_last=False,
-                            insert_common_part=False):
+                            insert_common_part=False, complete_event=None):
             document = buffer.document
+            complete_event = complete_event or CompleteEvent(text_inserted=True)
 
             # Don't start two threads at the same time.
             if complete_thread_running[0]:
@@ -619,9 +622,7 @@ class CommandLineInterface(object):
             complete_thread_running[0] = True
 
             def run():
-                completions = list(buffer.completer.get_completions(
-                    document,
-                    CompleteEvent(text_inserted=True)))
+                completions = list(buffer.completer.get_completions(document, complete_event))
                 complete_thread_running[0] = False
 
                 def callback():

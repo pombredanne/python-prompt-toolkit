@@ -149,13 +149,11 @@ class Buffer(object):
     current input line and implements all text manupulations on top of it. It
     also implements the history, undo stack and the completion state.
 
-    :attr completer : :class:`~prompt_toolkit.completion.Completer` instance.
-    :attr history: :class:`~prompt_toolkit.history.History` instance.
-    :attr callbacks: :class:`~.Callbacks` instance.
-
-    :attr tempfile_suffix: Suffix to be appended to the tempfile for the 'open
+    :param completer: :class:`~prompt_toolkit.completion.Completer` instance.
+    :param history: :class:`~prompt_toolkit.history.History` instance.
+    :param tempfile_suffix: Suffix to be appended to the tempfile for the 'open
                            in editor' function.
-    :attr is_multiline: SimpleFilter to indicate whether we should consider
+    :param is_multiline: SimpleFilter to indicate whether we should consider
                         this buffer a multiline input. If so, key bindings can
                         decide to insert newlines when pressing [Enter].
                         (Instead of accepting the input.)
@@ -935,7 +933,7 @@ class Buffer(object):
                 self.validator.validate(self.document)
             except ValidationError as e:
                 # Set cursor position (don't allow invalid values.)
-                cursor_position = e.index
+                cursor_position = e.cursor_position
                 self.cursor_position = min(max(0, cursor_position), len(self.text))
 
                 self.validation_error = e
